@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Particles</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #0e0f12;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: crosshair;
+  }
+
+  /* ---------- control panel ---------- */
+  .controls {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    width: 240px;
+    padding: 14px 16px 12px;
+    border-radius: 14px;
+    background: rgba(24, 26, 32, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    color: #c3c6d0;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    user-select: none;
+    z-index: 10;
+    transition: width 0.28s ease, padding 0.28s ease;
+  }
+
+  .controls-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .controls .title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: #7b8090;
+    margin-bottom: 12px;
+    white-space: nowrap;
+    transition: margin-bottom 0.28s ease;
+  }
+
+  .toggle {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    color: #c3c6d0;
+    font-size: 14px;
+    line-height: 1;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s ease, margin-bottom 0.28s ease, color 0.15s ease;
+  }
+  .toggle:hover { background: rgba(255, 255, 255, 0.16); color: #e6e8ee; }
+  .toggle:focus-visible { outline: 2px solid #7b8090; outline-offset: 2px; }
+
+  .controls-body {
+    overflow: hidden;
+    max-height: 720px;
+    opacity: 1;
+    transition: max-height 0.28s ease, opacity 0.2s ease;
+  }
+
+  /* collapsed state */
+  .controls.collapsed {
+    width: auto;
+    padding: 10px 12px 10px 14px;
+  }
+  .controls.collapsed .controls-body {
+    max-height: 0;
+    opacity: 0;
+  }
+  .controls.collapsed .title,
+  .controls.collapsed .toggle {
+    margin-bottom: 0;
+  }
+
+  .row {
+    display: block;
+    margin-bottom: 12px;
+  }
+  .row:last-of-type { margin-bottom: 4px; }
+
+  .row .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 5px;
+  }
+
+  .row .head span:last-child {
+    color: #e6e8ee;
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+  }
+
+  /* finer, more sensitive sliders */
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.14);
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #c3c6d0;
+    border: none;
+    box-shadow: 0 0 0 4px rgba(195, 198, 208, 0.12);
+    transition: box-shadow 0.15s ease;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 0 6px rgba(195, 198, 208, 0.2);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #c3c6d0;
+    border: none;
+    box-shadow: 0 0 0 4px rgba(195, 198, 208, 0.12);
+  }
+
+  .hint {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    font-size: 10.5px;
+    color: #6d7280;
+    line-height: 1.5;
+  }
+  .hint kbd {
+    font-family: inherit;
+    font-size: 10px;
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #a9aebc;
+  }
+
+  @media (max-width: 480px) {
+    .controls { left: 10px; right: 10px; bottom: 10px; width: auto; }
+    .controls.collapsed { left: 10px; right: auto; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div class="controls" id="controls">
+  <div class="controls-header">
+    <span class="title">Particle Controls</span>
+    <button class="toggle" id="toggleControls" type="button"
+            aria-expanded="true" aria-controls="controlsBody"
+            title="Hide controls (H)">−</button>
+  </div>
+
+  <div class="controls-body" id="controlsBody">
+    <label class="row">
+      <span class="head"><span>Shockwave size</span><span id="radiusVal">160 px</span></span>
+      <input id="radius" type="range" min="20" max="520" step="1" value="160">
+    </label>
+
+    <label class="row">
+      <span class="head"><span>Recovery speed</span><span id="springVal">14.0</span></span>
+      <input id="spring" type="range" min="1" max="120" step="1" value="14">
+    </label>
+
+    <label class="row">
+      <span class="head"><span>Wave strength</span><span id="powerVal">1.00×</span></span>
+      <input id="power" type="range" min="10" max="300" step="1" value="100">
+    </label>
+
+    <label class="row">
+      <span class="head"><span>Network strength</span><span id="networkVal">1.00×</span></span>
+      <input id="network" type="range" min="10" max="400" step="1" value="100">
+    </label>
+
+    <label class="row">
+      <span class="head"><span>Particle density</span><span id="densityVal">100%</span></span>
+      <input id="density" type="range" min="20" max="300" step="1" value="100">
+    </label>
+
+    <label class="row">
+      <span class="head"><span>Glow size</span><span id="glowVal">90 px</span></span>
+      <input id="glow" type="range" min="20" max="400" step="1" value="90">
+    </label>
+
+    <label class="row">
+      <span class="head"><span>Glow intensity</span><span id="glowIntVal">1.00×</span></span>
+      <input id="glowInt" type="range" min="10" max="300" step="1" value="100">
+    </label>
+
+    <div class="hint">
+      Click or drag anywhere.<br>
+      Dragging leaves a trail of shockwaves.<br>
+      Lower <em>Network strength</em> = bigger push.<br>
+      Press <kbd>H</kbd> to hide these controls.
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+
+  const CFG = {
+    spring: 0.014,        // how hard particles are pulled back home
+    damping: 0.93,        // velocity decay (higher = settles faster)
+    particleRadius: 2.1,
+    maxLinkAlpha: 0.42,
+    levels: 6,            // alpha buckets for the link lines
+    power: 8,             // base click impulse strength
+    radius: 160,          // shockwave radius in px
+    maxSpeed: 34,         // hard cap so dragging never explodes the field
+    dragScale: 0.45,      // dragging emits weaker, more frequent pushes
+    network: 1,           // 1 = normal; lower = particles pushed harder
+    density: 100,         // percent; 100 = default spacing
+    glowRadius: 90,       // glow halo radius in px
+    glowIntensity: 1      // 1 = normal
+  };
+
+  const TAU = Math.PI * 2;
+  let W = 0, H = 0, DPR = 1;
+  let particles = [];
+  let linkDist = 120;
+  let needsRender = true;
+
+  /* ---------- drag + glow trail state ---------- */
+  let dragging = false;
+  let pointerId = null;
+  let lastX = 0, lastY = 0;
+  const MIN_EMIT_DIST = 7;   // px the pointer must travel before a new wave
+
+  // trail of recent pointer positions (for the glowing smear)
+  const trail = [];          // { x, y, life }
+  const TRAIL_LIFE = 1;      // normalized 1 -> 0
+  const TRAIL_DECAY = 0.045; // how quickly each point fades per frame
+  const TRAIL_MAX = 40;      // cap so it never grows unbounded
+
+  /* ---------- build the particle field ---------- */
+
+  function buildParticles() {
+    particles = [];
+
+    const margin = Math.max(30, Math.min(W, H) * 0.07);
+
+    // base spacing adapts to screen size
+    let baseSpacing = Math.min(W, H) / 9;
+    baseSpacing = Math.max(46, Math.min(baseSpacing, 84));
+
+    // density scales the spacing: 100% = base, 400% = base / 2
+    let spacing = baseSpacing / Math.sqrt(CFG.density / 100);
+
+    // clamp so we never overwhelm the CPU or end up with a sparse grid
+    spacing = Math.max(26, Math.min(spacing, 220));
+
+    const innerW = W - margin * 2;
+    const innerH = H - margin * 2;
+
+    const cols = Math.max(2, Math.round(innerW / spacing) + 1);
+    const rows = Math.max(2, Math.round(innerH / spacing) + 1);
+
+    const stepX = innerW / (cols - 1);
+    const stepY = innerH / (rows - 1);
+
+    linkDist = Math.max(stepX, stepY) * 1.45;
+
+    for (let i = 0; i < cols; i++) {
+      for (let j = 0; j < rows; j++) {
+        const x = margin + i * stepX + (Math.random() - 0.5) * stepX * 0.22;
+        const y = margin + j * stepY + (Math.random() - 0.5) * stepY * 0.22;
+        particles.push({ x, y, hx: x, hy: y, vx: 0, vy: 0 });
+      }
+    }
+  }
+
+  /* ---------- shockwave impulse ---------- */
+
+  function impulse(cx, cy, scale) {
+    const R = CFG.radius;
+    const R2 = R * R;
+    // lower network value -> stronger push
+    const strength = (CFG.power * scale) / CFG.network;
+
+    for (const p of particles) {
+      const dx = p.x - cx;
+      const dy = p.y - cy;
+      const d2 = dx * dx + dy * dy;
+
+      if (d2 < R2) {
+        const d = Math.sqrt(d2) || 0.0001;
+        const f = (1 - d / R) * strength;
+        p.vx += (dx / d) * f;
+        p.vy += (dy / d) * f;
+      }
+    }
+    needsRender = true;
+  }
+
+  /* ---------- glow trail ---------- */
+
+  function pushTrail(x, y) {
+    trail.push({ x, y, life: 1 });
+    if (trail.length > TRAIL_MAX) trail.shift();
+    needsRender = true;
+  }
+
+  function updateTrail() {
+    if (!trail.length) return false;
+    let alive = false;
+    for (let i = trail.length - 1; i >= 0; i--) {
+      const t = trail[i];
+      t.life -= TRAIL_DECAY;
+      if (t.life <= 0) {
+        trail.splice(i, 1);
+      } else {
+        alive = true;
+      }
+    }
+    return alive;
+  }
+
+  /* ---------- physics ---------- */
+
+  function update() {
+    let moving = false;
+    const maxSpeed2 = CFG.maxSpeed * CFG.maxSpeed;
+
+    for (const p of particles) {
+      // spring back to the original (home) position
+      p.vx += (p.hx - p.x) * CFG.spring;
+      p.vy += (p.hy - p.y) * CFG.spring;
+
+      // damping
+      p.vx *= CFG.damping;
+      p.vy *= CFG.damping;
+
+      // clamp speed so rapid dragging stays well-behaved
+      const sp2 = p.vx * p.vx + p.vy * p.vy;
+      if (sp2 > maxSpeed2) {
+        const s = CFG.maxSpeed / Math.sqrt(sp2);
+        p.vx *= s;
+        p.vy *= s;
+      }
+
+      // integrate
+      p.x += p.vx;
+      p.y += p.vy;
+
+      // snap to rest so the loop can go idle
+      if (Math.abs(p.x - p.hx) < 0.05 && Math.abs(p.vx) < 0.05) {
+        p.x = p.hx;
+        p.vx = 0;
+      }
+      if (Math.abs(p.y - p.hy) < 0.05 && Math.abs(p.vy) < 0.05) {
+        p.y = p.hy;
+        p.vy = 0;
+      }
+
+      if (!moving) {
+        const dx = p.x - p.hx;
+        const dy = p.y - p.hy;
+        if (Math.abs(p.vx) > 0.02 || Math.abs(p.vy) > 0.02 ||
+            dx * dx + dy * dy > 0.25) {
+          moving = true;
+        }
+      }
+    }
+
+    const trailAlive = updateTrail();
+    if (moving || trailAlive) needsRender = true;
+  }
+
+  /* ---------- rendering ---------- */
+
+  function renderGlow() {
+    const R = CFG.glowRadius;
+    if (R <= 0) return;
+    const intensity = CFG.glowIntensity;
+
+    // additive blending for a real light look
+    const prevOp = ctx.globalCompositeOperation;
+    ctx.globalCompositeOperation = 'lighter';
+
+    for (const t of trail) {
+      const life = t.life;
+      if (life <= 0) continue;
+
+      // main halo
+      const g = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, R);
+      const a = life * life * 0.42 * intensity;
+      g.addColorStop(0,    'rgba(190, 210, 255, ' + (a * 0.95).toFixed(3) + ')');
+      g.addColorStop(0.22, 'rgba(150, 185, 255, ' + (a * 0.55).toFixed(3) + ')');
+      g.addColorStop(0.55, 'rgba(110, 150, 230, ' + (a * 0.18).toFixed(3) + ')');
+      g.addColorStop(1,    'rgba(80, 110, 190, 0)');
+
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, R, 0, TAU);
+      ctx.fill();
+
+      // hot core
+      const coreR = Math.max(2, R * 0.16);
+      const cg = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, coreR);
+      const ca = life * 0.85 * intensity;
+      cg.addColorStop(0, 'rgba(255, 255, 255, ' + ca.toFixed(3) + ')');
+      cg.addColorStop(0.5, 'rgba(210, 225, 255, ' + (ca * 0.45).toFixed(3) + ')');
+      cg.addColorStop(1, 'rgba(160, 190, 255, 0)');
+      ctx.fillStyle = cg;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, coreR, 0, TAU);
+      ctx.fill();
+    }
+
+    ctx.globalCompositeOperation = prevOp;
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+
+    const n = particles.length;
+    const maxD = linkDist;
+    const maxD2 = maxD * maxD;
+    const L = CFG.levels;
+
+    // bucket the lines by brightness so we only stroke a few paths
+    const buckets = [];
+    for (let i = 0; i < L; i++) buckets.push([]);
+
+    for (let i = 0; i < n; i++) {
+      const a = particles[i];
+      for (let j = i + 1; j < n; j++) {
+        const b = particles[j];
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const d2 = dx * dx + dy * dy;
+
+        if (d2 < maxD2) {
+          const t = 1 - Math.sqrt(d2) / maxD;           // 0..1, 1 = closest
+          const k = Math.min(L - 1, (t * L) | 0);
+          buckets[k].push(a.x, a.y, b.x, b.y);
+        }
+      }
+    }
+
+    ctx.lineWidth = 1;
+    for (let k = 0; k < L; k++) {
+      const arr = buckets[k];
+      if (!arr.length) continue;
+
+      const alpha = ((k + 1) / L) * CFG.maxLinkAlpha;
+      ctx.strokeStyle = 'rgba(158, 163, 176, ' + alpha.toFixed(3) + ')';
+      ctx.beginPath();
+      for (let m = 0; m < arr.length; m += 4) {
+        ctx.moveTo(arr[m], arr[m + 1]);
+        ctx.lineTo(arr[m + 2], arr[m + 3]);
+      }
+      ctx.stroke();
+    }
+
+    // particles
+    const r = CFG.particleRadius;
+    ctx.beginPath();
+    for (const p of particles) {
+      ctx.moveTo(p.x + r, p.y);
+      ctx.arc(p.x, p.y, r, 0, TAU);
+    }
+    ctx.fillStyle = '#c3c6d0';
+    ctx.fill();
+
+    // glowing drag trail sits on top of everything
+    renderGlow();
+  }
+
+  /* ---------- main loop ---------- */
+
+  function frame() {
+    update();
+    if (needsRender) {
+      render();
+      needsRender = false;
+    }
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- resize ---------- */
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+    buildParticles();
+    needsRender = true;
+  }
+
+  /* ---------- pointer events ---------- */
+
+  function localPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    dragging = true;
+    pointerId = e.pointerId;
+    if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
+
+    const { x, y } = localPos(e);
+    lastX = x;
+    lastY = y;
+
+    trail.length = 0;            // fresh trail on each new drag
+    pushTrail(x, y);
+    impulse(x, y, 1);            // full-strength burst on press
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (!dragging || e.pointerId !== pointerId) return;
+    e.preventDefault();
+
+    const { x, y } = localPos(e);
+    const dx = x - lastX;
+    const dy = y - lastY;
+
+    // emit glow + shockwave together as the pointer travels
+    if (dx * dx + dy * dy >= MIN_EMIT_DIST * MIN_EMIT_DIST) {
+      pushTrail(x, y);
+      impulse(x, y, CFG.dragScale);
+      lastX = x;
+      lastY = y;
+    }
+  });
+
+  function endDrag(e) {
+    if (!dragging || (e && e.pointerId !== pointerId)) return;
+    dragging = false;
+    if (canvas.releasePointerCapture && pointerId !== null) {
+      try { canvas.releasePointerCapture(pointerId); } catch (_) {}
+    }
+    pointerId = null;
+  }
+
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  window.addEventListener('blur', () => endDrag());
+
+  window.addEventListener('resize', resize);
+
+  /* ---------- sliders ---------- */
+
+  const radiusInput   = document.getElementById('radius');
+  const radiusVal     = document.getElementById('radiusVal');
+  const springInput   = document.getElementById('spring');
+  const springVal     = document.getElementById('springVal');
+  const powerInput    = document.getElementById('power');
+  const powerVal      = document.getElementById('powerVal');
+  const networkInput  = document.getElementById('network');
+  const networkVal    = document.getElementById('networkVal');
+  const densityInput  = document.getElementById('density');
+  const densityVal    = document.getElementById('densityVal');
+  const glowInput     = document.getElementById('glow');
+  const glowVal       = document.getElementById('glowVal');
+  const glowIntInput  = document.getElementById('glowInt');
+  const glowIntVal    = document.getElementById('glowIntVal');
+
+  radiusInput.addEventListener('input', () => {
+    CFG.radius = Number(radiusInput.value);
+    radiusVal.textContent = CFG.radius + ' px';
+  });
+
+  springInput.addEventListener('input', () => {
+    CFG.spring = Number(springInput.value) / 1000;
+    springVal.textContent = Number(springInput.value).toFixed(1);
+  });
+
+  powerInput.addEventListener('input', () => {
+    const mult = Number(powerInput.value) / 100;
+    CFG.power = 8 * mult;
+    powerVal.textContent = mult.toFixed(2) + '×';
+  });
+
+  networkInput.addEventListener('input', () => {
+    const mult = Number(networkInput.value) / 100;
+    CFG.network = mult;
+    networkVal.textContent = mult.toFixed(2) + '×';
+  });
+
+  densityInput.addEventListener('input', () => {
+    CFG.density = Number(densityInput.value);
+    densityVal.textContent = CFG.density + '%';
+    buildParticles();
+    needsRender = true;
+  });
+
+  glowInput.addEventListener('input', () => {
+    CFG.glowRadius = Number(glowInput.value);
+    glowVal.textContent = CFG.glowRadius + ' px';
+    needsRender = true;
+  });
+
+  glowIntInput.addEventListener('input', () => {
+    const mult = Number(glowIntInput.value) / 100;
+    CFG.glowIntensity = mult;
+    glowIntVal.textContent = mult.toFixed(2) + '×';
+    needsRender = true;
+  });
+
+  // initialize labels from current CFG values
+  radiusVal.textContent   = CFG.radius + ' px';
+  springVal.textContent   = (CFG.spring * 1000).toFixed(1);
+  powerVal.textContent    = (CFG.power / 8).toFixed(2) + '×';
+  networkVal.textContent  = CFG.network.toFixed(2) + '×';
+  densityVal.textContent  = CFG.density + '%';
+  glowVal.textContent     = CFG.glowRadius + ' px';
+  glowIntVal.textContent  = CFG.glowIntensity.toFixed(2) + '×';
+
+  /* ---------- hide / show controls ---------- */
+
+  const controls     = document.getElementById('controls');
+  const toggleButton = document.getElementById('toggleControls');
+
+  function setCollapsed(collapsed) {
+    controls.classList.toggle('collapsed', collapsed);
+    toggleButton.textContent = collapsed ? '+' : '−';
+    toggleButton.setAttribute('aria-expanded', String(!collapsed));
+    toggleButton.title = (collapsed ? 'Show controls' : 'Hide controls') + ' (H)';
+  }
+
+  toggleButton.addEventListener('click', () => {
+    setCollapsed(!controls.classList.contains('collapsed'));
+  });
+
+  // press H anywhere (outside a slider) to toggle the panel
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'h' && e.key !== 'H') return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+    setCollapsed(!controls.classList.contains('collapsed'));
+  });
+
+  /* ---------- go ---------- */
+
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
