@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Particles</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #0e0f12;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: crosshair;
+  }
+  canvas.panning { cursor: grabbing; }
+
+  /* ---------- control panel ---------- */
+  .controls {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    width: 240px;
+    padding: 14px 16px 12px;
+    border-radius: 14px;
+    background: rgba(24, 26, 32, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    color: #c3c6d0;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    user-select: none;
+    z-index: 10;
+    transition: width 0.28s ease, padding 0.28s ease;
+  }
+
+  .controls-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .controls .title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: #7b8090;
+    margin-bottom: 12px;
+    white-space: nowrap;
+    transition: margin-bottom 0.28s ease;
+  }
+
+  .toggle {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    color: #c3c6d0;
+    font-size: 14px;
+    line-height: 1;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s ease, margin-bottom 0.28s ease, color 0.15s ease;
+  }
+  .toggle:hover { background: rgba(255, 255, 255, 0.16); color: #e6e8ee; }
+  .toggle:focus-visible { outline: 2px solid #7b8090; outline-offset: 2px; }
+
+  .controls-body {
+    overflow: hidden;
+    max-height: 900px;
+    opacity: 1;
+    transition: max-height 0.28s ease, opacity 0.2s ease;
+  }
+
+  /* collapsed state */
+  .controls.collapsed {
+    width: auto;
+    padding: 10px 12px 10px 14px;
+  }
+  .controls.collapsed .controls-body {
+    max-height: 0;
+    opacity: 0;
+  }
+  .controls.collapsed .title,
+  .controls.collapsed .toggle {
+    margin-bottom: 0;
+  }
+
+  .row {
+    display: block;
+    margin-bottom: 12px;
+  }
+  .row:last-of-type { margin-bottom: 4px; }
+
+  .row .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 5px;
+  }
+
+  .row .head span:last-child {
+    color: #e6e8ee;
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+  }
+
+  /* finer, more sensitive sliders */
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.14);
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #c3c6d0;
+    border: none;
+    box-shadow: 0 0 0 4px rgba(195, 198, 208, 0.12);
+    transition: box-shadow 0.15s ease;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 0 6px rgba(195, 198, 208, 0.2);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #c3c6d0;
+    border: none;
+    box-shadow: 0 0 0 4px rgba(195, 198, 208, 0.12);
+  }
+
+  /* ---------- switch row ---------- */
+  .switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    color: #c3c6d0;
+  }
+
+  .switch-row input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+  }
+
+  .switch {
+    position: relative;
+    flex: 0 0 auto;
+    width: 32px;
+    height: 18px;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.14);
+    transition: background 0.2s ease;
+  }
+  .switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #c3c6d0;
+    transition: transform 0.2s ease, background 0.2s ease;
+  }
+  .switch-row input:checked + .switch {
+    background: rgba(110, 196, 240, 0.35);
+  }
+  .switch-row input:checked + .switch::after {
+    transform: translateX(14px);
+    background: #6ec4f0;
+  }
+  .switch-row input:focus-visible + .switch {
+    outline: 2px solid #7b8090;
+    outline-offset: 2px;
+  }
+  .switch-row:hover .switch {
+    background: rgba(255, 255, 255, 0.2);
+  }
+  .switch-row input:checked:hover + .switch {
+    background: rgba(110, 196, 240, 0.45);
+  }
+
+  /* ---------- view row ---------- */
+  .view-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .view-row button {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #c3c6d0;
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+  .view-row button:hover {
+    background: rgba(255, 255, 255, 0.14);
+    color: #e6e8ee;
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+  .view-row button:active {
+    background: rgba(255, 255, 255, 0.2);
+  }
+  .view-row button:focus-visible {
+    outline: 2px solid #7b8090;
+    outline-offset: 2px;
+  }
+
+  .zoom-readout {
+    flex: 0 0 auto;
+    min-width: 46px;
+    text-align: right;
+    color: #e6e8ee;
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+  }
+
+  .hint {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    font-size: 10.5px;
+    color: #6d7280;
+    line-height: 1.5;
+  }
+  .hint kbd {
+    font-family: inherit;
+    font-size: 10px;
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #a9aebc;
+  }
+
+  @media (max-width: 480px) {
+    .controls { left: 10px; right: 10px; bottom: 10px; width: auto; }
+    .controls.collapsed { left: 10px; right: auto; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div class="controls" id="controls">
+  <div class="controls-header">
+    <span class="title">Particle Controls</span>
+    <button class="toggle" id="toggleControls" type="button"
+            aria-expanded="true" aria-controls="controlsBody"
+            title="Hide controls (H)">−</button>
+  </div>
+
+  <div class="controls-body" id="controlsBody">
+
+    <div class="view-row">
+      <button id="zoomOut" type="button" title="Zoom out">−</button>
+      <span class="zoom-readout" id="zoomReadout">100%</span>
+      <button id="zoomIn" type="button" title="Zoom in">+</button>
+      <button id="resetView" type="button" title="Reset view (R)">Reset</button>
+    </div>
+
+    <label class="row">
+      <span class="head"><span>Shockwave size</span><span id="radiusVal">160 px</span></span>
+      <input id="radius" type="range" min="20" max="520" step="1" value="160">
+    </label>
+
+    <label class="row">
+      <span class="head"><span>Recovery speed</span><span id="springVal">14.0</span></span>
+      <input id="spring" type="range" min="1" max="120" step="1" value="14">
+    </label>
+
+    <label class="row">
+      <span class="head"><span>Wave strength</span><span id="powerVal">1.00×</span></span>
+      <input id="power" type="range" min="10" max="300" step="1" value="100">
+    </label>
+
+    <label class="row">
+      <span class="head"><span>Network strength</span><span id="networkVal">1.00×</span></span>
+      <input id="network" type="range" min="10" max="400" step="1" value="100">
+    </label>
+
+    <label class="row">
+      <span class="head"><span>Particle density</span><span id="densityVal">100%</span></span>
+      <input id="density" type="range" min="20" max="300" step="1" value="100">
+    </label>
+
+    <label class="row">
+      <span class="head"><span>Glow size</span><span id="glowVal">90 px</span></span>
+      <input id="glow" type="range" min="20" max="400" step="1" value="90">
+    </label>
+
+    <label class="row">
+      <span class="head"><span>Glow intensity</span><span id="glowIntVal">1.00×</span></span>
+      <input id="glowInt" type="range" min="10" max="300" step="1" value="100">
+    </label>
+
+    <label class="switch-row">
+      <span>Color by speed</span>
+      <input type="checkbox" id="colorToggle" checked>
+      <span class="switch"></span>
+    </label>
+
+    <div class="hint">
+      Click or drag anywhere.<br>
+      Drag with <em>right / middle</em> button to pan.<br>
+      Scroll to zoom · Pinch on touch.<br>
+      Lower <em>Network strength</em> = bigger push.<br>
+      Press <kbd>H</kbd> to hide · <kbd>R</kbd> to reset view.
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+
+  const CFG = {
+    spring: 0.014,
+    damping: 0.93,
+    particleRadius: 2.1,
+    maxLinkAlpha: 0.42,
+    levels: 6,
+    power: 8,
+    radius: 160,
+    maxSpeed: 34,
+    dragScale: 0.45,
+    network: 1,
+    density: 100,
+    glowRadius: 90,
+    glowIntensity: 1,
+    colorBySpeed: true
+  };
+
+  const TAU = Math.PI * 2;
+  let W = 0, H = 0, DPR = 1;
+  let particles = [];
+  let linkDist = 120;
+  let needsRender = true;
+
+  /* ---------- camera ---------- */
+  const cam = { x: 0, y: 0, zoom: 1 };
+  const MIN_ZOOM = 0.2;
+  const MAX_ZOOM = 8;
+  const ZOOM_WHEEL_SENS = 0.0015;
+
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+  function screenToWorld(sx, sy) {
+    return {
+      x: (sx - W / 2) / cam.zoom + cam.x,
+      y: (sy - H / 2) / cam.zoom + cam.y
+    };
+  }
+
+  function applyWorldTransform() {
+    ctx.translate(W / 2, H / 2);
+    ctx.scale(cam.zoom, cam.zoom);
+    ctx.translate(-cam.x, -cam.y);
+  }
+
+  function zoomAt(sx, sy, factor) {
+    const before = screenToWorld(sx, sy);
+    cam.zoom = clamp(cam.zoom * factor, MIN_ZOOM, MAX_ZOOM);
+    // keep the world point under the cursor fixed
+    cam.x = before.x - (sx - W / 2) / cam.zoom;
+    cam.y = before.y - (sy - H / 2) / cam.zoom;
+    updateZoomReadout();
+    needsRender = true;
+  }
+
+  function resetView() {
+    cam.x = W / 2;
+    cam.y = H / 2;
+    cam.zoom = 1;
+    updateZoomReadout();
+    needsRender = true;
+  }
+
+  /* ---------- speed palette (cool → hot) ---------- */
+  const SPEED_STEPS = 16;
+  const SPEED_PALETTE = [
+    '#c3c6d0', '#a8c1dd', '#8bc2e8', '#6ec4f0',
+    '#5ad0d4', '#5ad8b0', '#6fdc8c', '#9ee070',
+    '#cde460', '#f0e055', '#ffd155', '#ffb658',
+    '#ff9c5a', '#ff7e5e', '#ff6368', '#ff5578'
+  ];
+  const SPEED_REF = 12;
+  const SPEED_RADIUS_BOOST = 1.3;
+
+  /* ---------- glow trail ---------- */
+  const trail = [];
+  const TRAIL_DECAY = 0.045;
+  const TRAIL_MAX = 40;
+
+  /* ---------- pointer state ---------- */
+  const activePointers = new Map();
+  let mode = 'idle';           // 'shock' | 'pan' | 'pinch'
+  let shockPointerId = null;
+  let shockLastX = 0, shockLastY = 0;   // world coords
+  let panStartScreen = null;
+  let panStartCam = null;
+  let pinchState = null;
+
+  // Emit a new shockwave every N *screen* pixels of travel, so it feels
+  // the same regardless of zoom level.
+  const MIN_EMIT_DIST_SCREEN = 7;
+
+  /* ---------- build the particle field ---------- */
+
+  function buildParticles() {
+    particles = [];
+
+    const margin = Math.max(30, Math.min(W, H) * 0.07);
+
+    let baseSpacing = Math.min(W, H) / 9;
+    baseSpacing = Math.max(46, Math.min(baseSpacing, 84));
+
+    let spacing = baseSpacing / Math.sqrt(CFG.density / 100);
+    spacing = Math.max(26, Math.min(spacing, 220));
+
+    const innerW = W - margin * 2;
+    const innerH = H - margin * 2;
+
+    const cols = Math.max(2, Math.round(innerW / spacing) + 1);
+    const rows = Math.max(2, Math.round(innerH / spacing) + 1);
+
+    const stepX = innerW / (cols - 1);
+    const stepY = innerH / (rows - 1);
+
+    linkDist = Math.max(stepX, stepY) * 1.45;
+
+    for (let i = 0; i < cols; i++) {
+      for (let j = 0; j < rows; j++) {
+        const x = margin + i * stepX + (Math.random() - 0.5) * stepX * 0.22;
+        const y = margin + j * stepY + (Math.random() - 0.5) * stepY * 0.22;
+        particles.push({ x, y, hx: x, hy: y, vx: 0, vy: 0 });
+      }
+    }
+  }
+
+  /* ---------- shockwave impulse (world coords) ---------- */
+
+  function impulse(cx, cy, scale) {
+    const R = CFG.radius;
+    const R2 = R * R;
+    const strength = (CFG.power * scale) / CFG.network;
+
+    for (const p of particles) {
+      const dx = p.x - cx;
+      const dy = p.y - cy;
+      const d2 = dx * dx + dy * dy;
+
+      if (d2 < R2) {
+        const d = Math.sqrt(d2) || 0.0001;
+        const f = (1 - d / R) * strength;
+        p.vx += (dx / d) * f;
+        p.vy += (dy / d) * f;
+      }
+    }
+    needsRender = true;
+  }
+
+  /* ---------- glow trail ---------- */
+
+  function pushTrail(x, y) {
+    trail.push({ x, y, life: 1 });
+    if (trail.length > TRAIL_MAX) trail.shift();
+    needsRender = true;
+  }
+
+  function updateTrail() {
+    if (!trail.length) return false;
+    let alive = false;
+    for (let i = trail.length - 1; i >= 0; i--) {
+      const t = trail[i];
+      t.life -= TRAIL_DECAY;
+      if (t.life <= 0) trail.splice(i, 1);
+      else alive = true;
+    }
+    return alive;
+  }
+
+  /* ---------- physics ---------- */
+
+  function update() {
+    let moving = false;
+    const maxSpeed2 = CFG.maxSpeed * CFG.maxSpeed;
+
+    for (const p of particles) {
+      p.vx += (p.hx - p.x) * CFG.spring;
+      p.vy += (p.hy - p.y) * CFG.spring;
+
+      p.vx *= CFG.damping;
+      p.vy *= CFG.damping;
+
+      const sp2 = p.vx * p.vx + p.vy * p.vy;
+      if (sp2 > maxSpeed2) {
+        const s = CFG.maxSpeed / Math.sqrt(sp2);
+        p.vx *= s;
+        p.vy *= s;
+      }
+
+      p.x += p.vx;
+      p.y += p.vy;
+
+      if (Math.abs(p.x - p.hx) < 0.05 && Math.abs(p.vx) < 0.05) {
+        p.x = p.hx; p.vx = 0;
+      }
+      if (Math.abs(p.y - p.hy) < 0.05 && Math.abs(p.vy) < 0.05) {
+        p.y = p.hy; p.vy = 0;
+      }
+
+      if (!moving) {
+        const dx = p.x - p.hx;
+        const dy = p.y - p.hy;
+        if (Math.abs(p.vx) > 0.02 || Math.abs(p.vy) > 0.02 ||
+            dx * dx + dy * dy > 0.25) {
+          moving = true;
+        }
+      }
+    }
+
+    const trailAlive = updateTrail();
+    if (moving || trailAlive) needsRender = true;
+  }
+
+  /* ---------- rendering ---------- */
+
+  function renderGlow() {
+    const R = CFG.glowRadius;
+    if (R <= 0) return;
+    const intensity = CFG.glowIntensity;
+
+    const prevOp = ctx.globalCompositeOperation;
+    ctx.globalCompositeOperation = 'lighter';
+
+    for (const t of trail) {
+      const life = t.life;
+      if (life <= 0) continue;
+
+      const g = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, R);
+      const a = life * life * 0.42 * intensity;
+      g.addColorStop(0,    'rgba(190, 210, 255, ' + (a * 0.95).toFixed(3) + ')');
+      g.addColorStop(0.22, 'rgba(150, 185, 255, ' + (a * 0.55).toFixed(3) + ')');
+      g.addColorStop(0.55, 'rgba(110, 150, 230, ' + (a * 0.18).toFixed(3) + ')');
+      g.addColorStop(1,    'rgba(80, 110, 190, 0)');
+
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, R, 0, TAU);
+      ctx.fill();
+
+      const coreR = Math.max(2, R * 0.16);
+      const cg = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, coreR);
+      const ca = life * 0.85 * intensity;
+      cg.addColorStop(0,   'rgba(255, 255, 255, ' + ca.toFixed(3) + ')');
+      cg.addColorStop(0.5, 'rgba(210, 225, 255, ' + (ca * 0.45).toFixed(3) + ')');
+      cg.addColorStop(1,   'rgba(160, 190, 255, 0)');
+      ctx.fillStyle = cg;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, coreR, 0, TAU);
+      ctx.fill();
+    }
+
+    ctx.globalCompositeOperation = prevOp;
+  }
+
+  function drawParticles() {
+    const n = particles.length;
+
+    if (!CFG.colorBySpeed) {
+      const r = CFG.particleRadius;
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const p = particles[i];
+        ctx.moveTo(p.x + r, p.y);
+        ctx.arc(p.x, p.y, r, 0, TAU);
+      }
+      ctx.fillStyle = '#c3c6d0';
+      ctx.fill();
+      return;
+    }
+
+    const S = SPEED_STEPS;
+    const bucketX = [];
+    const bucketY = [];
+    for (let i = 0; i < S; i++) {
+      bucketX.push([]);
+      bucketY.push([]);
+    }
+
+    const scale = S / SPEED_REF;
+
+    for (let i = 0; i < n; i++) {
+      const p = particles[i];
+      const sp = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+      let k = (sp * scale) | 0;
+      if (k >= S) k = S - 1;
+      bucketX[k].push(p.x);
+      bucketY[k].push(p.y);
+    }
+
+    const rBase = CFG.particleRadius;
+
+    for (let k = 0; k < S; k++) {
+      const xs = bucketX[k];
+      if (!xs.length) continue;
+
+      const ys = bucketY[k];
+      const r = rBase + (k / (S - 1)) * SPEED_RADIUS_BOOST;
+
+      ctx.fillStyle = SPEED_PALETTE[k];
+      ctx.beginPath();
+      for (let m = 0; m < xs.length; m++) {
+        const x = xs[m];
+        const y = ys[m];
+        ctx.moveTo(x + r, y);
+        ctx.arc(x, y, r, 0, TAU);
+      }
+      ctx.fill();
+    }
+  }
+
+  function render() {
+    // reset to device-pixel transform and clear the whole canvas
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
+    ctx.save();
+    applyWorldTransform();
+
+    const n = particles.length;
+    const maxD = linkDist;
+    const maxD2 = maxD * maxD;
+    const L = CFG.levels;
+
+    const buckets = [];
+    for (let i = 0; i < L; i++) buckets.push([]);
+
+    for (let i = 0; i < n; i++) {
+      const a = particles[i];
+      for (let j = i + 1; j < n; j++) {
+        const b = particles[j];
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const d2 = dx * dx + dy * dy;
+
+        if (d2 < maxD2) {
+          const t = 1 - Math.sqrt(d2) / maxD;
+          const k = Math.min(L - 1, (t * L) | 0);
+          buckets[k].push(a.x, a.y, b.x, b.y);
+        }
+      }
+    }
+
+    // keep link strokes visually thin regardless of zoom
+    ctx.lineWidth = 1 / cam.zoom;
+    for (let k = 0; k < L; k++) {
+      const arr = buckets[k];
+      if (!arr.length) continue;
+
+      const alpha = ((k + 1) / L) * CFG.maxLinkAlpha;
+      ctx.strokeStyle = 'rgba(158, 163, 176, ' + alpha.toFixed(3) + ')';
+      ctx.beginPath();
+      for (let m = 0; m < arr.length; m += 4) {
+        ctx.moveTo(arr[m], arr[m + 1]);
+        ctx.lineTo(arr[m + 2], arr[m + 3]);
+      }
+      ctx.stroke();
+    }
+
+    drawParticles();
+    renderGlow();
+
+    ctx.restore();
+  }
+
+  /* ---------- main loop ---------- */
+
+  function frame() {
+    update();
+    if (needsRender) {
+      render();
+      needsRender = false;
+    }
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- resize ---------- */
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+
+    buildParticles();
+
+    // recenter on the rebuilt field but keep the user's zoom
+    cam.x = W / 2;
+    cam.y = H / 2;
+    updateZoomReadout();
+    needsRender = true;
+  }
+
+  /* ---------- pointer helpers ---------- */
+
+  function localPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  /* ---------- shockwave drag ---------- */
+
+  function beginShock(e) {
+    const s = localPos(e);
+    const w = screenToWorld(s.x, s.y);
+
+    shockPointerId = e.pointerId;
+    shockLastX = w.x;
+    shockLastY = w.y;
+
+    trail.length = 0;
+    pushTrail(w.x, w.y);
+    impulse(w.x, w.y, 1);
+  }
+
+  function moveShock(e) {
+    const s = localPos(e);
+    const w = screenToWorld(s.x, s.y);
+
+    const dx = w.x - shockLastX;
+    const dy = w.y - shockLastY;
+
+    // threshold expressed in screen pixels → convert to world
+    const emitWorld = MIN_EMIT_DIST_SCREEN / cam.zoom;
+
+    if (dx * dx + dy * dy >= emitWorld * emitWorld) {
+      pushTrail(w.x, w.y);
+      impulse(w.x, w.y, CFG.dragScale);
+      shockLastX = w.x;
+      shockLastY = w.y;
+    }
+  }
+
+  /* ---------- pan ---------- */
+
+  function beginPan(e) {
+    const s = localPos(e);
+    panStartScreen = s;
+    panStartCam = { x: cam.x, y: cam.y };
+    canvas.classList.add('panning');
+  }
+
+  function movePan(e) {
+    const s = localPos(e);
+    cam.x = panStartCam.x - (s.x - panStartScreen.x) / cam.zoom;
+    cam.y = panStartCam.y - (s.y - panStartScreen.y) / cam.zoom;
+    needsRender = true;
+  }
+
+  /* ---------- pinch ---------- */
+
+  function beginPinch() {
+    const pts = [...activePointers.values()];
+    const a = pts[0], b = pts[1];
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+
+    pinchState = {
+      startDist: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)),
+      startZoom: cam.zoom,
+      worldMid: screenToWorld(mid.x, mid.y)
+    };
+  }
+
+  function movePinch() {
+    const pts = [...activePointers.values()];
+    if (pts.length < 2) return;
+    const a = pts[0], b = pts[1];
+    const dist = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+
+    const factor = dist / pinchState.startDist;
+    cam.zoom = clamp(pinchState.startZoom * factor, MIN_ZOOM, MAX_ZOOM);
+
+    cam.x = pinchState.worldMid.x - (mid.x - W / 2) / cam.zoom;
+    cam.y = pinchState.worldMid.y - (mid.y - H / 2) / cam.zoom;
+
+    updateZoomReadout();
+    needsRender = true;
+  }
+
+  /* ---------- pointer events ---------- */
+
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  canvas.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (canvas.setPointerCapture) {
+      try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+
+    activePointers.set(e.pointerId, localPos(e));
+
+    // two pointers → pinch
+    if (activePointers.size === 2) {
+      if (mode === 'shock') { mode = 'idle'; shockPointerId = null; }
+      if (mode === 'pan')   { mode = 'idle'; canvas.classList.remove('panning'); }
+      mode = 'pinch';
+      beginPinch();
+      return;
+    }
+
+    if (activePointers.size !== 1) return;
+
+    // middle or right button → pan
+    if (e.button === 1 || e.button === 2) {
+      mode = 'pan';
+      beginPan(e);
+      return;
+    }
+
+    // left button → shockwave
+    if (e.button === 0) {
+      mode = 'shock';
+      beginShock(e);
+    }
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (!activePointers.has(e.pointerId)) return;
+    activePointers.set(e.pointerId, localPos(e));
+
+    if (mode === 'pinch') {
+      movePinch();
+    } else if (mode === 'pan' && e.pointerId === firstPointerId()) {
+      movePan(e);
+    } else if (mode === 'shock' && e.pointerId === shockPointerId) {
+      moveShock(e);
+    }
+  });
+
+  function firstPointerId() {
+    // the pointer that initiated the current mode
+    if (mode === 'pan') {
+      for (const id of activePointers.keys()) return id;
+    }
+    return null;
+  }
+
+  function endPointer(e) {
+    if (!activePointers.has(e.pointerId)) return;
+    activePointers.delete(e.pointerId);
+
+    if (canvas.releasePointerCapture && e.pointerId != null) {
+      try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+
+    if (mode === 'pinch') {
+      if (activePointers.size === 0) mode = 'idle';
+      else if (activePointers.size === 1) {
+        // drop back to pan with the remaining finger for a smooth feel
+        mode = 'pan';
+        const remaining = [...activePointers.values()][0];
+        panStartScreen = remaining;
+        panStartCam = { x: cam.x, y: cam.y };
+        canvas.classList.add('panning');
+      }
+      return;
+    }
+
+    if (mode === 'shock' && e.pointerId === shockPointerId) {
+      mode = 'idle';
+      shockPointerId = null;
+      return;
+    }
+
+    if (mode === 'pan') {
+      mode = 'idle';
+      canvas.classList.remove('panning');
+    }
+  }
+
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  window.addEventListener('blur', () => {
+    activePointers.clear();
+    mode = 'idle';
+    shockPointerId = null;
+    canvas.classList.remove('panning');
+  });
+
+  /* ---------- wheel zoom ---------- */
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const s = localPos(e);
+
+    // normalize line / page deltas to pixels
+    let delta = e.deltaY;
+    if (e.deltaMode === 1) delta *= 16;
+    else if (e.deltaMode === 2) delta *= 100;
+
+    const factor = Math.exp(-delta * ZOOM_WHEEL_SENS);
+    zoomAt(s.x, s.y, factor);
+  }, { passive: false });
+
+  /* ---------- keyboard ---------- */
+
+  window.addEventListener('keydown', (e) => {
+    const tag = document.activeElement && document.activeElement.tagName;
+    const typing = tag === 'INPUT' || tag === 'TEXTAREA';
+
+    // R = reset view
+    if ((e.key === 'r' || e.key === 'R') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (!typing) { resetView(); return; }
+    }
+
+    // H = hide panel
+    if ((e.key === 'h' || e.key === 'H') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (typing) return;
+      setCollapsed(!controls.classList.contains('collapsed'));
+    }
+  });
+
+  window.addEventListener('resize', resize);
+
+  /* ---------- sliders ---------- */
+
+  const radiusInput   = document.getElementById('radius');
+  const radiusVal     = document.getElementById('radiusVal');
+  const springInput   = document.getElementById('spring');
+  const springVal     = document.getElementById('springVal');
+  const powerInput    = document.getElementById('power');
+  const powerVal      = document.getElementById('powerVal');
+  const networkInput  = document.getElementById('network');
+  const networkVal    = document.getElementById('networkVal');
+  const densityInput  = document.getElementById('density');
+  const densityVal    = document.getElementById('densityVal');
+  const glowInput     = document.getElementById('glow');
+  const glowVal       = document.getElementById('glowVal');
+  const glowIntInput  = document.getElementById('glowInt');
+  const glowIntVal    = document.getElementById('glowIntVal');
+  const colorToggle   = document.getElementById('colorToggle');
+
+  radiusInput.addEventListener('input', () => {
+    CFG.radius = Number(radiusInput.value);
+    radiusVal.textContent = CFG.radius + ' px';
+  });
+
+  springInput.addEventListener('input', () => {
+    CFG.spring = Number(springInput.value) / 1000;
+    springVal.textContent = Number(springInput.value).toFixed(1);
+  });
+
+  powerInput.addEventListener('input', () => {
+    const mult = Number(powerInput.value) / 100;
+    CFG.power = 8 * mult;
+    powerVal.textContent = mult.toFixed(2) + '×';
+  });
+
+  networkInput.addEventListener('input', () => {
+    const mult = Number(networkInput.value) / 100;
+    CFG.network = mult;
+    networkVal.textContent = mult.toFixed(2) + '×';
+  });
+
+  densityInput.addEventListener('input', () => {
+    CFG.density = Number(densityInput.value);
+    densityVal.textContent = CFG.density + '%';
+    buildParticles();
+    needsRender = true;
+  });
+
+  glowInput.addEventListener('input', () => {
+    CFG.glowRadius = Number(glowInput.value);
+    glowVal.textContent = CFG.glowRadius + ' px';
+    needsRender = true;
+  });
+
+  glowIntInput.addEventListener('input', () => {
+    const mult = Number(glowIntInput.value) / 100;
+    CFG.glowIntensity = mult;
+    glowIntVal.textContent = mult.toFixed(2) + '×';
+    needsRender = true;
+  });
+
+  colorToggle.addEventListener('change', () => {
+    CFG.colorBySpeed = colorToggle.checked;
+    needsRender = true;
+  });
+
+  // initialize labels
+  radiusVal.textContent   = CFG.radius + ' px';
+  springVal.textContent   = (CFG.spring * 1000).toFixed(1);
+  powerVal.textContent    = (CFG.power / 8).toFixed(2) + '×';
+  networkVal.textContent  = CFG.network.toFixed(2) + '×';
+  densityVal.textContent  = CFG.density + '%';
+  glowVal.textContent     = CFG.glowRadius + ' px';
+  glowIntVal.textContent  = CFG.glowIntensity.toFixed(2) + '×';
+  colorToggle.checked     = CFG.colorBySpeed;
+
+  /* ---------- view buttons ---------- */
+
+  const zoomReadout = document.getElementById('zoomReadout');
+
+  function updateZoomReadout() {
+    zoomReadout.textContent = Math.round(cam.zoom * 100) + '%';
+  }
+
+  document.getElementById('zoomIn').addEventListener('click', () => {
+    zoomAt(W / 2, H / 2, 1.25);
+  });
+  document.getElementById('zoomOut').addEventListener('click', () => {
+    zoomAt(W / 2, H / 2, 1 / 1.25);
+  });
+  document.getElementById('resetView').addEventListener('click', resetView);
+
+  /* ---------- hide / show controls ---------- */
+
+  const controls     = document.getElementById('controls');
+  const toggleButton = document.getElementById('toggleControls');
+
+  function setCollapsed(collapsed) {
+    controls.classList.toggle('collapsed', collapsed);
+    toggleButton.textContent = collapsed ? '+' : '−';
+    toggleButton.setAttribute('aria-expanded', String(!collapsed));
+    toggleButton.title = (collapsed ? 'Show controls' : 'Hide controls') + ' (H)';
+  }
+
+  toggleButton.addEventListener('click', () => {
+    setCollapsed(!controls.classList.contains('collapsed'));
+  });
+
+  /* ---------- go ---------- */
+
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
