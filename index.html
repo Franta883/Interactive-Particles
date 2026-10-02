@@ -83,12 +83,11 @@
 
   .controls-body {
     overflow: hidden;
-    max-height: 900px;
+    max-height: 1000px;
     opacity: 1;
     transition: max-height 0.28s ease, opacity 0.2s ease;
   }
 
-  /* collapsed state */
   .controls.collapsed {
     width: auto;
     padding: 10px 12px 10px 14px;
@@ -121,7 +120,6 @@
     font-size: 11px;
   }
 
-  /* finer, more sensitive sliders */
   input[type="range"] {
     -webkit-appearance: none;
     appearance: none;
@@ -210,6 +208,49 @@
   }
   .switch-row input:checked:hover + .switch {
     background: rgba(110, 196, 240, 0.45);
+  }
+
+  /* ---------- color picker row ---------- */
+  .color-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    color: #c3c6d0;
+  }
+
+  .color-row input[type="color"] {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 0 0 auto;
+    width: 34px;
+    height: 20px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .color-row input[type="color"]:hover {
+    border-color: rgba(255, 255, 255, 0.32);
+  }
+  .color-row input[type="color"]:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px #7b8090;
+  }
+  .color-row input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 2px;
+  }
+  .color-row input[type="color"]::-webkit-color-swatch {
+    border: none;
+    border-radius: 4px;
+  }
+  .color-row input[type="color"]::-moz-color-swatch {
+    border: none;
+    border-radius: 4px;
   }
 
   /* ---------- view row ---------- */
@@ -333,6 +374,11 @@
       <input id="glowInt" type="range" min="10" max="300" step="1" value="100">
     </label>
 
+    <label class="color-row">
+      <span>Base color</span>
+      <input type="color" id="baseColor" value="#c3c6d0">
+    </label>
+
     <label class="switch-row">
       <span>Color by speed</span>
       <input type="checkbox" id="colorToggle" checked>
@@ -370,7 +416,8 @@
     density: 100,
     glowRadius: 90,
     glowIntensity: 1,
-    colorBySpeed: true
+    colorBySpeed: true,
+    baseColor: '#c3c6d0'    // resting / starting particle color
   };
 
   const TAU = Math.PI * 2;
@@ -403,7 +450,6 @@
   function zoomAt(sx, sy, factor) {
     const before = screenToWorld(sx, sy);
     cam.zoom = clamp(cam.zoom * factor, MIN_ZOOM, MAX_ZOOM);
-    // keep the world point under the cursor fixed
     cam.x = before.x - (sx - W / 2) / cam.zoom;
     cam.y = before.y - (sy - H / 2) / cam.zoom;
     updateZoomReadout();
@@ -418,16 +464,86 @@
     needsRender = true;
   }
 
-  /* ---------- speed palette (cool → hot) ---------- */
+  /* ---------- color helpers ---------- */
+
+  function hexToRgb(hex) {
+    let h = String(hex).replace('#', '').trim();
+    if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    const v = parseInt(h, 16);
+    return { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 };
+  }
+
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    let h = 0, s = 0;
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      if (max === r)      h = (g - b) / d + (g < b ? 6 : 0);
+      else if (max === g) h = (b - r) / d + 2;
+      else                h = (r - g) / d + 4;
+      h *= 60;
+    }
+    return [h, s, l];
+  }
+
+  function hslToHex(h, s, l) {
+    h = ((h % 360) + 360) % 360;
+    s = clamp(s, 0, 1);
+    l = clamp(l, 0, 1);
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = l - c / 2;
+    let r, g, b;
+    if (h < 60)       { r = c; g = x; b = 0; }
+    else if (h < 120) { r = x; g = c; b = 0; }
+    else if (h < 180) { r = 0; g = c; b = x; }
+    else if (h < 240) { r = 0; g = x; b = c; }
+    else if (h < 300) { r = x; g = 0; b = c; }
+    else              { r = c; g = 0; b = x; }
+    const to = (v) => {
+      const n = Math.round((v + m) * 255);
+      return (n < 16 ? '0' : '') + n.toString(16);
+    };
+    return '#' + to(r) + to(g) + to(b);
+  }
+
+  /* ---------- speed palette (built from base color) ---------- */
+
   const SPEED_STEPS = 16;
-  const SPEED_PALETTE = [
-    '#c3c6d0', '#a8c1dd', '#8bc2e8', '#6ec4f0',
-    '#5ad0d4', '#5ad8b0', '#6fdc8c', '#9ee070',
-    '#cde460', '#f0e055', '#ffd155', '#ffb658',
-    '#ff9c5a', '#ff7e5e', '#ff6368', '#ff5578'
-  ];
-  const SPEED_REF = 12;
+  const SPEED_PALETTE = new Array(SPEED_STEPS).fill('#c3c6d0');
+  const HOT_COLOR = '#ff5578';   // the "fastest" end of the gradient
+  const SPEED_REF = 12;          // speed at which particles reach the hottest color
   const SPEED_RADIUS_BOOST = 1.3;
+
+  function rebuildPalette() {
+    const base = hexToRgb(CFG.baseColor);
+    const [bh, bs, bl] = rgbToHsl(base.r, base.g, base.b);
+    const hot = hexToRgb(HOT_COLOR);
+    const [eh, es, el] = rgbToHsl(hot.r, hot.g, hot.b);
+
+    // gray-ish base has no meaningful hue — pick a cool default for the path
+    const startHue = bs < 0.08 ? 220 : bh;
+
+    // travel down through the hues; force a generous arc so the
+    // gradient is always clearly visible
+    let span = (startHue - eh + 360) % 360;
+    if (span < 120) span += 360;
+
+    SPEED_PALETTE[0] = CFG.baseColor;   // exact chosen color at rest
+
+    const targetS = Math.max(es, 0.95);
+
+    for (let k = 1; k < SPEED_STEPS; k++) {
+      const t = k / (SPEED_STEPS - 1);
+      const h = startHue - span * t;
+      const s = bs + (targetS - bs) * t;
+      const l = bl + (el - bl) * t;
+      SPEED_PALETTE[k] = hslToHex(h, s, l);
+    }
+  }
 
   /* ---------- glow trail ---------- */
   const trail = [];
@@ -438,13 +554,11 @@
   const activePointers = new Map();
   let mode = 'idle';           // 'shock' | 'pan' | 'pinch'
   let shockPointerId = null;
-  let shockLastX = 0, shockLastY = 0;   // world coords
+  let shockLastX = 0, shockLastY = 0;
   let panStartScreen = null;
   let panStartCam = null;
   let pinchState = null;
 
-  // Emit a new shockwave every N *screen* pixels of travel, so it feels
-  // the same regardless of zoom level.
   const MIN_EMIT_DIST_SCREEN = 7;
 
   /* ---------- build the particle field ---------- */
@@ -480,7 +594,7 @@
     }
   }
 
-  /* ---------- shockwave impulse (world coords) ---------- */
+  /* ---------- shockwave impulse ---------- */
 
   function impulse(cx, cy, scale) {
     const R = CFG.radius;
@@ -618,7 +732,7 @@
         ctx.moveTo(p.x + r, p.y);
         ctx.arc(p.x, p.y, r, 0, TAU);
       }
-      ctx.fillStyle = '#c3c6d0';
+      ctx.fillStyle = CFG.baseColor;   // user-chosen resting color
       ctx.fill();
       return;
     }
@@ -664,7 +778,6 @@
   }
 
   function render() {
-    // reset to device-pixel transform and clear the whole canvas
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.clearRect(0, 0, W, H);
 
@@ -695,7 +808,6 @@
       }
     }
 
-    // keep link strokes visually thin regardless of zoom
     ctx.lineWidth = 1 / cam.zoom;
     for (let k = 0; k < L; k++) {
       const arr = buckets[k];
@@ -740,7 +852,6 @@
 
     buildParticles();
 
-    // recenter on the rebuilt field but keep the user's zoom
     cam.x = W / 2;
     cam.y = H / 2;
     updateZoomReadout();
@@ -776,7 +887,6 @@
     const dx = w.x - shockLastX;
     const dy = w.y - shockLastY;
 
-    // threshold expressed in screen pixels → convert to world
     const emitWorld = MIN_EMIT_DIST_SCREEN / cam.zoom;
 
     if (dx * dx + dy * dy >= emitWorld * emitWorld) {
@@ -846,7 +956,6 @@
 
     activePointers.set(e.pointerId, localPos(e));
 
-    // two pointers → pinch
     if (activePointers.size === 2) {
       if (mode === 'shock') { mode = 'idle'; shockPointerId = null; }
       if (mode === 'pan')   { mode = 'idle'; canvas.classList.remove('panning'); }
@@ -857,14 +966,12 @@
 
     if (activePointers.size !== 1) return;
 
-    // middle or right button → pan
     if (e.button === 1 || e.button === 2) {
       mode = 'pan';
       beginPan(e);
       return;
     }
 
-    // left button → shockwave
     if (e.button === 0) {
       mode = 'shock';
       beginShock(e);
@@ -877,20 +984,12 @@
 
     if (mode === 'pinch') {
       movePinch();
-    } else if (mode === 'pan' && e.pointerId === firstPointerId()) {
+    } else if (mode === 'pan') {
       movePan(e);
     } else if (mode === 'shock' && e.pointerId === shockPointerId) {
       moveShock(e);
     }
   });
-
-  function firstPointerId() {
-    // the pointer that initiated the current mode
-    if (mode === 'pan') {
-      for (const id of activePointers.keys()) return id;
-    }
-    return null;
-  }
 
   function endPointer(e) {
     if (!activePointers.has(e.pointerId)) return;
@@ -903,7 +1002,6 @@
     if (mode === 'pinch') {
       if (activePointers.size === 0) mode = 'idle';
       else if (activePointers.size === 1) {
-        // drop back to pan with the remaining finger for a smooth feel
         mode = 'pan';
         const remaining = [...activePointers.values()][0];
         panStartScreen = remaining;
@@ -940,7 +1038,6 @@
     e.preventDefault();
     const s = localPos(e);
 
-    // normalize line / page deltas to pixels
     let delta = e.deltaY;
     if (e.deltaMode === 1) delta *= 16;
     else if (e.deltaMode === 2) delta *= 100;
@@ -955,12 +1052,10 @@
     const tag = document.activeElement && document.activeElement.tagName;
     const typing = tag === 'INPUT' || tag === 'TEXTAREA';
 
-    // R = reset view
     if ((e.key === 'r' || e.key === 'R') && !e.metaKey && !e.ctrlKey && !e.altKey) {
       if (!typing) { resetView(); return; }
     }
 
-    // H = hide panel
     if ((e.key === 'h' || e.key === 'H') && !e.metaKey && !e.ctrlKey && !e.altKey) {
       if (typing) return;
       setCollapsed(!controls.classList.contains('collapsed'));
@@ -986,6 +1081,7 @@
   const glowIntInput  = document.getElementById('glowInt');
   const glowIntVal    = document.getElementById('glowIntVal');
   const colorToggle   = document.getElementById('colorToggle');
+  const baseColorInput = document.getElementById('baseColor');
 
   radiusInput.addEventListener('input', () => {
     CFG.radius = Number(radiusInput.value);
@@ -1034,6 +1130,12 @@
     needsRender = true;
   });
 
+  baseColorInput.addEventListener('input', () => {
+    CFG.baseColor = baseColorInput.value;
+    rebuildPalette();       // regenerate the speed gradient from the new base
+    needsRender = true;
+  });
+
   // initialize labels
   radiusVal.textContent   = CFG.radius + ' px';
   springVal.textContent   = (CFG.spring * 1000).toFixed(1);
@@ -1043,6 +1145,7 @@
   glowVal.textContent     = CFG.glowRadius + ' px';
   glowIntVal.textContent  = CFG.glowIntensity.toFixed(2) + '×';
   colorToggle.checked     = CFG.colorBySpeed;
+  baseColorInput.value    = CFG.baseColor;
 
   /* ---------- view buttons ---------- */
 
@@ -1078,6 +1181,7 @@
 
   /* ---------- go ---------- */
 
+  rebuildPalette();   // build the initial gradient from CFG.baseColor
   resize();
   requestAnimationFrame(frame);
 })();
