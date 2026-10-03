@@ -153,64 +153,7 @@
     box-shadow: 0 0 0 4px rgba(195, 198, 208, 0.12);
   }
 
-  /* ---------- switch row ---------- */
-  .switch-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 12px;
-    cursor: pointer;
-    color: #c3c6d0;
-  }
-
-  .switch-row input {
-    position: absolute;
-    opacity: 0;
-    width: 0;
-    height: 0;
-    pointer-events: none;
-  }
-
-  .switch {
-    position: relative;
-    flex: 0 0 auto;
-    width: 32px;
-    height: 18px;
-    border-radius: 9px;
-    background: rgba(255, 255, 255, 0.14);
-    transition: background 0.2s ease;
-  }
-  .switch::after {
-    content: '';
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: #c3c6d0;
-    transition: transform 0.2s ease, background 0.2s ease;
-  }
-  .switch-row input:checked + .switch {
-    background: rgba(110, 196, 240, 0.35);
-  }
-  .switch-row input:checked + .switch::after {
-    transform: translateX(14px);
-    background: #6ec4f0;
-  }
-  .switch-row input:focus-visible + .switch {
-    outline: 2px solid #7b8090;
-    outline-offset: 2px;
-  }
-  .switch-row:hover .switch {
-    background: rgba(255, 255, 255, 0.2);
-  }
-  .switch-row input:checked:hover + .switch {
-    background: rgba(110, 196, 240, 0.45);
-  }
-
-  /* ---------- color picker row ---------- */
+  /* ---------- color picker rows ---------- */
   .color-row {
     display: flex;
     align-items: center;
@@ -253,6 +196,50 @@
     border-radius: 4px;
   }
 
+  /* ---------- segmented control ---------- */
+  .seg-block {
+    margin-bottom: 12px;
+  }
+
+  .seg-label {
+    display: block;
+    margin-bottom: 6px;
+    color: #c3c6d0;
+  }
+
+  .seg {
+    display: flex;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .seg button {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 4px;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: #868b97;
+    font-family: inherit;
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .seg button:hover { color: #e6e8ee; }
+  .seg button.active {
+    background: rgba(110, 196, 240, 0.18);
+    color: #6ec4f0;
+  }
+  .seg button:focus-visible {
+    outline: 2px solid #7b8090;
+    outline-offset: 1px;
+  }
+
   /* ---------- view row ---------- */
   .view-row {
     display: flex;
@@ -279,9 +266,7 @@
     color: #e6e8ee;
     border-color: rgba(255, 255, 255, 0.2);
   }
-  .view-row button:active {
-    background: rgba(255, 255, 255, 0.2);
-  }
+  .view-row button:active { background: rgba(255, 255, 255, 0.2); }
   .view-row button:focus-visible {
     outline: 2px solid #7b8090;
     outline-offset: 2px;
@@ -365,12 +350,12 @@
     </label>
 
     <label class="row">
-      <span class="head"><span>Glow size</span><span id="glowVal">90 px</span></span>
+      <span class="head"><span>Trail size</span><span id="glowVal">90 px</span></span>
       <input id="glow" type="range" min="20" max="400" step="1" value="90">
     </label>
 
     <label class="row">
-      <span class="head"><span>Glow intensity</span><span id="glowIntVal">1.00×</span></span>
+      <span class="head"><span>Trail intensity</span><span id="glowIntVal">1.00×</span></span>
       <input id="glowInt" type="range" min="10" max="300" step="1" value="100">
     </label>
 
@@ -379,10 +364,18 @@
       <input type="color" id="baseColor" value="#c3c6d0">
     </label>
 
-    <label class="switch-row">
-      <span>Color by speed</span>
-      <input type="checkbox" id="colorToggle" checked>
-      <span class="switch"></span>
+    <div class="seg-block">
+      <span class="seg-label">Shock effect</span>
+      <div class="seg" id="shockMode" role="radiogroup" aria-label="Shock effect">
+        <button type="button" data-mode="speed" class="active" role="radio" aria-checked="true">Speed</button>
+        <button type="button" data-mode="none" role="radio" aria-checked="false">None</button>
+        <button type="button" data-mode="glow" role="radio" aria-checked="false">Glow</button>
+      </div>
+    </div>
+
+    <label class="color-row" id="glowColorRow">
+      <span>Glow color</span>
+      <input type="color" id="glowColor" value="#7ec4ff">
     </label>
 
     <div class="hint">
@@ -414,10 +407,11 @@
     dragScale: 0.45,
     network: 1,
     density: 100,
-    glowRadius: 90,
-    glowIntensity: 1,
-    colorBySpeed: true,
-    baseColor: '#c3c6d0'    // resting / starting particle color
+    glowRadius: 90,        // mouse trail halo radius
+    glowIntensity: 1,      // mouse trail brightness
+    baseColor: '#c3c6d0',  // resting particle color
+    glowColor: '#7ec4ff',  // color of particle halos in Glow mode
+    shockMode: 'speed'     // 'speed' | 'none' | 'glow'
   };
 
   const TAU = Math.PI * 2;
@@ -510,12 +504,12 @@
     return '#' + to(r) + to(g) + to(b);
   }
 
-  /* ---------- speed palette (built from base color) ---------- */
+  /* ---------- speed palette (for Speed mode) ---------- */
 
   const SPEED_STEPS = 16;
   const SPEED_PALETTE = new Array(SPEED_STEPS).fill('#c3c6d0');
-  const HOT_COLOR = '#ff5578';   // the "fastest" end of the gradient
-  const SPEED_REF = 12;          // speed at which particles reach the hottest color
+  const HOT_COLOR = '#ff5578';
+  const SPEED_REF = 12;
   const SPEED_RADIUS_BOOST = 1.3;
 
   function rebuildPalette() {
@@ -524,15 +518,12 @@
     const hot = hexToRgb(HOT_COLOR);
     const [eh, es, el] = rgbToHsl(hot.r, hot.g, hot.b);
 
-    // gray-ish base has no meaningful hue — pick a cool default for the path
     const startHue = bs < 0.08 ? 220 : bh;
 
-    // travel down through the hues; force a generous arc so the
-    // gradient is always clearly visible
     let span = (startHue - eh + 360) % 360;
     if (span < 120) span += 360;
 
-    SPEED_PALETTE[0] = CFG.baseColor;   // exact chosen color at rest
+    SPEED_PALETTE[0] = CFG.baseColor;
 
     const targetS = Math.max(es, 0.95);
 
@@ -545,14 +536,49 @@
     }
   }
 
-  /* ---------- glow trail ---------- */
+  /* ---------- pre-rendered particle glow sprites ---------- */
+
+  const GLOW_SPRITE_SIZE = 64;
+  const PARTICLE_GLOW_BASE = 26;   // max halo diameter in px at full speed
+  let glowSprites = [];
+
+  function buildGlowSprites() {
+    glowSprites = [];
+    const base = hexToRgb(CFG.glowColor);
+
+    for (let k = 0; k < SPEED_STEPS; k++) {
+      const c = document.createElement('canvas');
+      c.width = c.height = GLOW_SPRITE_SIZE;
+      const g = c.getContext('2d');
+      const half = GLOW_SPRITE_SIZE / 2;
+
+      // slight mix toward white as speed rises, giving a "hotter" core
+      const t = k / (SPEED_STEPS - 1);
+      const mix = t * 0.38;
+      const r  = Math.round(base.r + (255 - base.r) * mix);
+      const gr = Math.round(base.g + (255 - base.g) * mix);
+      const b  = Math.round(base.b + (255 - base.b) * mix);
+
+      const grad = g.createRadialGradient(half, half, 0, half, half, half);
+      grad.addColorStop(0,    'rgba(' + r + ',' + gr + ',' + b + ',1)');
+      grad.addColorStop(0.28, 'rgba(' + r + ',' + gr + ',' + b + ',0.48)');
+      grad.addColorStop(0.58, 'rgba(' + r + ',' + gr + ',' + b + ',0.14)');
+      grad.addColorStop(1,    'rgba(' + r + ',' + gr + ',' + b + ',0)');
+
+      g.fillStyle = grad;
+      g.fillRect(0, 0, GLOW_SPRITE_SIZE, GLOW_SPRITE_SIZE);
+      glowSprites.push(c);
+    }
+  }
+
+  /* ---------- mouse trail glow ---------- */
   const trail = [];
   const TRAIL_DECAY = 0.045;
   const TRAIL_MAX = 40;
 
   /* ---------- pointer state ---------- */
   const activePointers = new Map();
-  let mode = 'idle';           // 'shock' | 'pan' | 'pinch'
+  let mode = 'idle';
   let shockPointerId = null;
   let shockLastX = 0, shockLastY = 0;
   let panStartScreen = null;
@@ -616,7 +642,7 @@
     needsRender = true;
   }
 
-  /* ---------- glow trail ---------- */
+  /* ---------- trail ---------- */
 
   function pushTrail(x, y) {
     trail.push({ x, y, life: 1 });
@@ -682,7 +708,7 @@
 
   /* ---------- rendering ---------- */
 
-  function renderGlow() {
+  function renderTrail() {
     const R = CFG.glowRadius;
     if (R <= 0) return;
     const intensity = CFG.glowIntensity;
@@ -721,31 +747,14 @@
     ctx.globalCompositeOperation = prevOp;
   }
 
-  function drawParticles() {
-    const n = particles.length;
-
-    if (!CFG.colorBySpeed) {
-      const r = CFG.particleRadius;
-      ctx.beginPath();
-      for (let i = 0; i < n; i++) {
-        const p = particles[i];
-        ctx.moveTo(p.x + r, p.y);
-        ctx.arc(p.x, p.y, r, 0, TAU);
-      }
-      ctx.fillStyle = CFG.baseColor;   // user-chosen resting color
-      ctx.fill();
-      return;
-    }
-
+  function bucketBySpeed() {
     const S = SPEED_STEPS;
     const bucketX = [];
     const bucketY = [];
-    for (let i = 0; i < S; i++) {
-      bucketX.push([]);
-      bucketY.push([]);
-    }
+    for (let i = 0; i < S; i++) { bucketX.push([]); bucketY.push([]); }
 
     const scale = S / SPEED_REF;
+    const n = particles.length;
 
     for (let i = 0; i < n; i++) {
       const p = particles[i];
@@ -756,25 +765,97 @@
       bucketY[k].push(p.y);
     }
 
+    return { bucketX, bucketY };
+  }
+
+  function drawParticles() {
+    const n = particles.length;
+    const mode = CFG.shockMode;
+
+    /* --- NONE: uniform base color, no reaction --- */
+    if (mode === 'none') {
+      const r = CFG.particleRadius;
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const p = particles[i];
+        ctx.moveTo(p.x + r, p.y);
+        ctx.arc(p.x, p.y, r, 0, TAU);
+      }
+      ctx.fillStyle = CFG.baseColor;
+      ctx.fill();
+      return;
+    }
+
+    const S = SPEED_STEPS;
+    const { bucketX, bucketY } = bucketBySpeed();
+
+    /* --- SPEED: tint each particle by its velocity --- */
+    if (mode === 'speed') {
+      const rBase = CFG.particleRadius;
+      for (let k = 0; k < S; k++) {
+        const xs = bucketX[k];
+        if (!xs.length) continue;
+        const ys = bucketY[k];
+        const r = rBase + (k / (S - 1)) * SPEED_RADIUS_BOOST;
+
+        ctx.fillStyle = SPEED_PALETTE[k];
+        ctx.beginPath();
+        for (let m = 0; m < xs.length; m++) {
+          ctx.moveTo(xs[m] + r, ys[m]);
+          ctx.arc(xs[m], ys[m], r, 0, TAU);
+        }
+        ctx.fill();
+      }
+      return;
+    }
+
+    /* --- GLOW: base dots + user-colored halo that scales with speed --- */
     const rBase = CFG.particleRadius;
+    ctx.fillStyle = CFG.baseColor;
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const p = particles[i];
+      ctx.moveTo(p.x + rBase, p.y);
+      ctx.arc(p.x, p.y, rBase, 0, TAU);
+    }
+    ctx.fill();
+
+    if (!glowSprites.length) return;
+
+    const intensity = CFG.glowIntensity;
+    if (intensity <= 0) return;
+
+    const prevOp = ctx.globalCompositeOperation;
+    const prevAlpha = ctx.globalAlpha;
+    ctx.globalCompositeOperation = 'lighter';
+
+    const baseSize = PARTICLE_GLOW_BASE * intensity;
 
     for (let k = 0; k < S; k++) {
       const xs = bucketX[k];
       if (!xs.length) continue;
 
       const ys = bucketY[k];
-      const r = rBase + (k / (S - 1)) * SPEED_RADIUS_BOOST;
+      const t = k / (S - 1);
 
-      ctx.fillStyle = SPEED_PALETTE[k];
-      ctx.beginPath();
+      // resting particles emit nothing; fast ones bloom
+      if (t <= 0.02) continue;
+
+      const size = baseSize * (0.12 + t * 1.55);
+      if (size < 1) continue;
+
+      const alpha = 0.06 + t * 0.82;
+      const sprite = glowSprites[k];
+      const half = size / 2;
+
+      ctx.globalAlpha = alpha;
       for (let m = 0; m < xs.length; m++) {
-        const x = xs[m];
-        const y = ys[m];
-        ctx.moveTo(x + r, y);
-        ctx.arc(x, y, r, 0, TAU);
+        ctx.drawImage(sprite, xs[m] - half, ys[m] - half, size, size);
       }
-      ctx.fill();
     }
+
+    ctx.globalAlpha = prevAlpha;
+    ctx.globalCompositeOperation = prevOp;
   }
 
   function render() {
@@ -824,7 +905,7 @@
     }
 
     drawParticles();
-    renderGlow();
+    renderTrail();
 
     ctx.restore();
   }
@@ -1064,24 +1145,27 @@
 
   window.addEventListener('resize', resize);
 
-  /* ---------- sliders ---------- */
+  /* ---------- sliders & inputs ---------- */
 
-  const radiusInput   = document.getElementById('radius');
-  const radiusVal     = document.getElementById('radiusVal');
-  const springInput   = document.getElementById('spring');
-  const springVal     = document.getElementById('springVal');
-  const powerInput    = document.getElementById('power');
-  const powerVal      = document.getElementById('powerVal');
-  const networkInput  = document.getElementById('network');
-  const networkVal    = document.getElementById('networkVal');
-  const densityInput  = document.getElementById('density');
-  const densityVal    = document.getElementById('densityVal');
-  const glowInput     = document.getElementById('glow');
-  const glowVal       = document.getElementById('glowVal');
-  const glowIntInput  = document.getElementById('glowInt');
-  const glowIntVal    = document.getElementById('glowIntVal');
-  const colorToggle   = document.getElementById('colorToggle');
+  const radiusInput    = document.getElementById('radius');
+  const radiusVal      = document.getElementById('radiusVal');
+  const springInput    = document.getElementById('spring');
+  const springVal      = document.getElementById('springVal');
+  const powerInput     = document.getElementById('power');
+  const powerVal       = document.getElementById('powerVal');
+  const networkInput   = document.getElementById('network');
+  const networkVal     = document.getElementById('networkVal');
+  const densityInput   = document.getElementById('density');
+  const densityVal     = document.getElementById('densityVal');
+  const glowInput      = document.getElementById('glow');
+  const glowVal        = document.getElementById('glowVal');
+  const glowIntInput   = document.getElementById('glowInt');
+  const glowIntVal     = document.getElementById('glowIntVal');
   const baseColorInput = document.getElementById('baseColor');
+  const glowColorInput = document.getElementById('glowColor');
+  const glowColorRow   = document.getElementById('glowColorRow');
+  const shockModeEl    = document.getElementById('shockMode');
+  const shockButtons   = [...shockModeEl.querySelectorAll('button')];
 
   radiusInput.addEventListener('input', () => {
     CFG.radius = Number(radiusInput.value);
@@ -1125,15 +1209,34 @@
     needsRender = true;
   });
 
-  colorToggle.addEventListener('change', () => {
-    CFG.colorBySpeed = colorToggle.checked;
+  baseColorInput.addEventListener('input', () => {
+    CFG.baseColor = baseColorInput.value;
+    rebuildPalette();
     needsRender = true;
   });
 
-  baseColorInput.addEventListener('input', () => {
-    CFG.baseColor = baseColorInput.value;
-    rebuildPalette();       // regenerate the speed gradient from the new base
+  glowColorInput.addEventListener('input', () => {
+    CFG.glowColor = glowColorInput.value;
+    buildGlowSprites();
     needsRender = true;
+  });
+
+  function setShockMode(mode) {
+    CFG.shockMode = mode;
+    shockButtons.forEach((btn) => {
+      const on = btn.dataset.mode === mode;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-checked', String(on));
+    });
+    // the glow color picker is only meaningful in Glow mode
+    glowColorRow.style.opacity = mode === 'glow' ? '1' : '0.45';
+    needsRender = true;
+  }
+
+  shockModeEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-mode]');
+    if (!btn) return;
+    setShockMode(btn.dataset.mode);
   });
 
   // initialize labels
@@ -1144,8 +1247,9 @@
   densityVal.textContent  = CFG.density + '%';
   glowVal.textContent     = CFG.glowRadius + ' px';
   glowIntVal.textContent  = CFG.glowIntensity.toFixed(2) + '×';
-  colorToggle.checked     = CFG.colorBySpeed;
   baseColorInput.value    = CFG.baseColor;
+  glowColorInput.value    = CFG.glowColor;
+  setShockMode(CFG.shockMode);
 
   /* ---------- view buttons ---------- */
 
@@ -1181,7 +1285,8 @@
 
   /* ---------- go ---------- */
 
-  rebuildPalette();   // build the initial gradient from CFG.baseColor
+  rebuildPalette();
+  buildGlowSprites();
   resize();
   requestAnimationFrame(frame);
 })();
